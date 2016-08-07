@@ -154,7 +154,7 @@ cpu_init_crit:
 	 * When booting from NAND - it has definitely been a reset, so, no need
 	 * to flush caches and disable the MMU
 	 */
-#ifndef CONFIG_NAND_SPL
+
 	/*
 	 * flush v4 I/D caches
 	 */
@@ -170,26 +170,9 @@ cpu_init_crit:
 	bic	r0, r0, #0x00000087	@ clear bits 7, 2:0 (B--- -CAM)
 	orr	r0, r0, #0x00000002	@ set bit 2 (A) Align
 	orr	r0, r0, #0x00001000	@ set bit 12 (I) I-Cache
-	/* Prepare to disable the MMU */
-	adr	r1, mmu_disable_phys
-	/* We presume we're within the first 1024 bytes */
-	and	r1, r1, #0x3fc
-	ldr	r2, _TEXT_PHY_BASE
-	ldr	r3, =0xfff00000
-	and	r2, r2, r3
-	orr	r2, r2, r1
-	b	mmu_disable
-
-	.align 5
-	/* Run in a single cache-line */
-mmu_disable:
 	mcr	p15, 0, r0, c1, c0, 0
-	nop
-	nop
-	mov	pc, r2
-#endif
 
-mmu_disable_phys:
+	
 	/* Peri port setup */
 	ldr	r0, =0x70000000
 	orr	r0, r0, #0x13
@@ -199,6 +182,13 @@ mmu_disable_phys:
 	 * Go setup Memory and board specific bits prior to relocation.
 	 */
 	bl	lowlevel_init		/* go setup pll,mux,memory */
+
+
+
+
+
+
+mmu_disable_phys:
 
 after_copy:
 #ifdef CONFIG_ENABLE_MMU

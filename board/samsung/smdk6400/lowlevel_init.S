@@ -36,13 +36,7 @@
 
 #include <asm/arch/s3c6400.h>
 
-#ifdef CONFIG_SERIAL1
-#define ELFIN_UART_CONSOLE_BASE (ELFIN_UART_BASE + ELFIN_UART0_OFFSET)
-#elif defined(CONFIG_SERIAL2)
-#define ELFIN_UART_CONSOLE_BASE (ELFIN_UART_BASE + ELFIN_UART1_OFFSET)
-#else
-#define ELFIN_UART_CONSOLE_BASE (ELFIN_UART_BASE + ELFIN_UART2_OFFSET)
-#endif
+
 
 _TEXT_BASE:
 	.word	TEXT_BASE
@@ -61,6 +55,22 @@ lowlevel_init:
 
 	ldr	r1, =0xf000
 	str	r1, [r0, #GPNDAT_OFFSET]
+
+	ldr	r0, =ELFIN_GPIO_BASE
+	ldr	r1, =0x1
+	str	r1, [r0, #GPECON_OFFSET]
+	ldr	r1, =0x0
+	str	r1, [r0, #GPEDAT_OFFSET]
+
+	ldr	r0, =ELFIN_GPIO_BASE
+	ldr	r1, =0x2A5AAAAA
+	str	r1, [r0, #GPPCON_OFFSET]
+	ldr	r1, =0x0
+	str	r1, [r0, #GPPDAT_OFFSET]
+	
+
+	ldr	r1, =0x55555555
+	str	r1, [r0, #MEM1DRVCON_OFFSET]
 
 	/* Disable Watchdog */
 	ldr	r0, =0x7e000000		@0x7e004000
@@ -151,7 +161,6 @@ wakeup_reset:
 system_clock_init:
 	ldr	r0, =ELFIN_CLOCK_POWER_BASE	/* 0x7e00f000 */
 
-#ifdef CONFIG_SYNC_MODE
 	ldr	r1, [r0, #OTHERS_OFFSET]
 	mov	r2, #0x40
 	orr	r1, r1, r2
@@ -173,39 +182,21 @@ check_syncack:
 	and	r1, r1, r2
 	cmp	r1, #0xf00
 	bne	check_syncack
-#else	/* ASYNC Mode */
-	nop
-	nop
-	nop
-	nop
-	nop
-
-	/*
-	 * This was unconditional in original Samsung sources, but it doesn't
-	 * seem to make much sense on S3C6400.
-	 */
-#ifndef CONFIG_S3C6400
-	ldr	r1, [r0, #OTHERS_OFFSET]
-	bic	r1, r1, #0xC0
-	orr	r1, r1, #0x40
-	str	r1, [r0, #OTHERS_OFFSET]
-
-wait_for_async:
-	ldr	r1, [r0, #OTHERS_OFFSET]
-	and	r1, r1, #0xf00
-	cmp	r1, #0x0
-	bne	wait_for_async
-#endif
-
-	ldr	r1, [r0, #OTHERS_OFFSET]
-	bic	r1, r1, #0x40
-	str	r1, [r0, #OTHERS_OFFSET]
-#endif
 
 	mov	r1, #0xff00
 	orr	r1, r1, #0xff
 	str	r1, [r0, #APLL_LOCK_OFFSET]
 	str	r1, [r0, #MPLL_LOCK_OFFSET]
+	str	r1, [r0, #EPLL_LOCK_OFFSET]
+/* CLKUART(=66.5Mhz) = CLKUART_input(532/2=266Mhz) / (UART_RATIO(3)+1) */
+/* CLKUART(=50Mhz) = CLKUART_input(400/2=200Mhz) / (UART_RATIO(3)+1) */
+/* Now, When you use UART CLK SRC by EXT_UCLK1, We support 532MHz & 400MHz value */
+
+	ldr   	r1, [r0, #CLK_DIV2_OFFSET]
+	bic	r1, r1, #0x70000
+	orr	r1, r1, #0x30000
+	str	r1, [r0, #CLK_DIV2_OFFSET]
+
 
 	/* Set Clock Divider */
 	ldr	r1, [r0, #CLK_DIV0_OFFSET]
@@ -222,14 +213,18 @@ wait_for_async:
 	str	r1, [r0, #MPLL_CON_OFFSET]
 
 	/* FOUT of EPLL is 96MHz */
-	ldr	r1, =0x200203
+	ldr	r1, =0x80200203
 	str	r1, [r0, #EPLL_CON0_OFFSET]
 	ldr	r1, =0x0
 	str	r1, [r0, #EPLL_CON1_OFFSET]
 
 	/* APLL, MPLL, EPLL select to Fout */
 	ldr	r1, [r0, #CLK_SRC_OFFSET]
-	orr	r1, r1, #0x7
+
+	ldr	r2, =0x2007
+
+	orr	r1, r1, r2
+
 	str	r1, [r0, #CLK_SRC_OFFSET]
 
 	/* wait at least 200us to stablize all clock */
@@ -238,16 +233,11 @@ wait_for_async:
 	bne	1b
 
 	/* Synchronization for VIC port */
-#if defined(CONFIG_SYNC_MODE)
+
 	ldr	r1, [r0, #OTHERS_OFFSET]
 	orr	r1, r1, #0x20
 	str	r1, [r0, #OTHERS_OFFSET]
-#elif !defined(CONFIG_S3C6400)
-	/* According to 661558um_S3C6400X_rev10.pdf 0x20 is reserved */
-	ldr	r1, [r0, #OTHERS_OFFSET]
-	bic	r1, r1, #0x20
-	str	r1, [r0, #OTHERS_OFFSET]
-#endif
+
 	mov	pc, lr
 
 
