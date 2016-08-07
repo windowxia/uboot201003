@@ -162,7 +162,7 @@ export	ARCH CPU BOARD VENDOR SOC
 ifeq ($(HOSTARCH),$(ARCH))
 CROSS_COMPILE ?=
 endif
-
+CROSS_COMPILE = arm-linux-
 # load other configuration
 include $(TOPDIR)/config.mk
 
